@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Upload Weekly Menu</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+</head>
+<body style="font-family: system-ui; max-width: 720px; margin: 40px auto; padding: 0 16px;">
+  <h1>Upload Weekly Menu</h1>
+  <p>Select the new menu image. This replaces the menu on the website.</p>
+
+  <label>
+    PIN:
+    <input id="pinInput" placeholder="Enter PIN" style="margin-left:8px; padding:8px;">
+  </label>
+
+  <br><br>
+
+  <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp">
+
+  <p id="status"></p>
+
+<script>
+const statusEl = document.getElementById("status");
+
+async function upload(file) {
+  statusEl.textContent = "Preparing upload...";
+
+  const pin = document.getElementById("pinInput").value.trim();
+  const signRes = await fetch(`/api/cloudinary-sign?pin=${encodeURIComponent(pin)}`);
+
+  if (!signRes.ok) {
+    statusEl.textContent = "❌ Wrong PIN or not authorized.";
+    return;
+  }
+
+  const sig = await signRes.json();
+
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("api_key", sig.apiKey);
+  formData.append("timestamp", String(sig.timestamp));
+  formData.append("signature", sig.signature);
+  formData.append("folder", sig.folder);
+  formData.append("public_id", sig.publicId);
+  formData.append("overwrite", "true");
+  formData.append("invalidate", "true");
+
+  statusEl.textContent = "Uploading...";
+
+  const uploadRes = await fetch(
+    `https://api.cloudinary.com/v1_1/${sig.cloudName}/image/upload`,
+    { method: "POST", body: formData }
+  );
+
+  if (!uploadRes.ok) {
+    const txt = await uploadRes.text();
+    statusEl.textContent = "❌ Upload failed: " + txt;
+    return;
+  }
+
+  statusEl.textContent = "✅ Uploaded! Menu updated.";
+}
+
+document.getElementById("fileInput").addEventListener("change", (e) => {
+  const file = e.target.files?.[0];
+  if (file) upload(file);
+});
+</script>
+</body>
+</html>
