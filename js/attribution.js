@@ -1,14 +1,11 @@
 // ✅ DEPLOYMENT CHECK
-console.log("✅ attribution.js LOADED — fbclid TTL (7 days) + discount TTL (1 minute) + loader baton");
+console.log("✅ attribution.js LOADED — fbclid TTL (7 days) + loader baton");
 
 (function () {
   const KEY = "fbclid_data";
 
-  // ✅ 7-day click attribution window (Meta-like) — FBCLID ONLY
+  // ✅ 7-day click attribution window (Meta-like)
   const TTL_MS = 7 * 24 * 60 * 60 * 1000;
-
-  // ✅ NEW: 1-minute TTL for DISCOUNT CODE ONLY
-  const DISCOUNT_TTL_MS = 60 * 1000; // 1 minute
 
   const ALLOWED_EXTERNAL_HOSTS = new Set([
     "app.bitely.com.au",
@@ -20,7 +17,7 @@ console.log("✅ attribution.js LOADED — fbclid TTL (7 days) + discount TTL (1
   const LOADER_PARAM = "showAppLoader"; // Bitely header checks showAppLoader=1
   const LOADER_TS_PARAM = "lbts";       // timestamp for short validity window
 
-  // ✅ Discount code persistence keys
+  // ✅ NEW: Discount code persistence keys (surgical add)
   const DISCOUNT_PARAM = "discountcode";
   const DISCOUNT_KEY = "discountcode_data";
 
@@ -36,6 +33,7 @@ console.log("✅ attribution.js LOADED — fbclid TTL (7 days) + discount TTL (1
     }
   }
 
+  // ✅ NEW: read stored discount code (surgical add)
   function readStoredDiscount() {
     try {
       return JSON.parse(localStorage.getItem(DISCOUNT_KEY));
@@ -55,6 +53,7 @@ console.log("✅ attribution.js LOADED — fbclid TTL (7 days) + discount TTL (1
     console.log("📥 fbclid captured (first click):", value);
   }
 
+  // ✅ NEW: store discount code (surgical add)
   function storeDiscount(value) {
     localStorage.setItem(
       DISCOUNT_KEY,
@@ -71,9 +70,10 @@ console.log("✅ attribution.js LOADED — fbclid TTL (7 days) + discount TTL (1
     console.log("🧹 fbclid expired — cleared");
   }
 
+  // ✅ NEW: clear discount code (7-day aligned) (surgical add)
   function clearDiscount() {
     localStorage.removeItem(DISCOUNT_KEY);
-    console.log("🧹 discountcode expired — cleared (1 min TTL)");
+    console.log("🧹 discountcode expired — cleared");
   }
 
   // --- capture incoming fbclid ---
@@ -86,18 +86,17 @@ console.log("✅ attribution.js LOADED — fbclid TTL (7 days) + discount TTL (1
     store(incoming);
   }
 
-  // --- capture incoming discount code ---
+  // ✅ NEW: capture incoming discount code (surgical add)
   const incomingDiscount = params.get(DISCOUNT_PARAM);
   const storedDiscount = readStoredDiscount();
-
   if (incomingDiscount && (!storedDiscount || storedDiscount.value !== incomingDiscount)) {
     storeDiscount(incomingDiscount);
   }
 
-  // --- read active fbclid ---
+  // --- read active fbclid (may be null) ---
   let active = readStored();
 
-  // ✅ Enforce 7-day expiry for fbclid
+  // ✅ Enforce 7-day expiry (only if we actually have one stored)
   if (active && now() - active.ts > TTL_MS) {
     clear();
     active = null;
@@ -107,11 +106,11 @@ console.log("✅ attribution.js LOADED — fbclid TTL (7 days) + discount TTL (1
   if (fbclid) console.log("✅ fbclid active:", fbclid);
   else console.log("ℹ️ no fbclid stored (still patching Bitely loader baton)");
 
-  // --- read active discount code ---
+  // ✅ NEW: read active discount code (may be null) (surgical add)
   let activeDiscount = readStoredDiscount();
 
-  // ✅ Enforce 1-minute expiry for discount code
-  if (activeDiscount && now() - activeDiscount.ts > DISCOUNT_TTL_MS) {
+  // ✅ ONLY CHANGE: discountcode expires after 1 minute (60,000 ms)
+  if (activeDiscount && now() - activeDiscount.ts > 60 * 1000) {
     clearDiscount();
     activeDiscount = null;
   }
@@ -120,7 +119,7 @@ console.log("✅ attribution.js LOADED — fbclid TTL (7 days) + discount TTL (1
   if (discountcode) console.log("✅ discountcode active:", discountcode);
   else console.log("ℹ️ no discountcode stored");
 
-  // ✅ Append fbclid + discountcode + loader baton to internal + Bitely links
+  // ✅ Append fbclid (if present) + loader baton (always) to internal + Bitely links
   document.querySelectorAll("a[href]").forEach((link) => {
     const href = link.getAttribute("href");
     if (!href) return;
@@ -144,7 +143,8 @@ console.log("✅ attribution.js LOADED — fbclid TTL (7 days) + discount TTL (1
 
     if (!isSameOrigin && !isAllowedExternal) return;
 
-    // ✅ Add Bitely loader baton
+    // ✅ If this is a Bitely link, append loader baton for cross-domain transitions
+    // (This will be ignored by Bitely unless you also update the Bitely header script.)
     if (isAllowedExternal) {
       if (!url.searchParams.has(LOADER_PARAM)) {
         url.searchParams.set(LOADER_PARAM, "1");
@@ -152,9 +152,24 @@ console.log("✅ attribution.js LOADED — fbclid TTL (7 days) + discount TTL (1
       }
     }
 
-    // ✅ Append fbclid if active
+    // ✅ Append fbclid only if we have one and it isn't already present
     if (fbclid && !url.searchParams.has("fbclid")) {
       url.searchParams.set("fbclid", fbclid);
     }
 
-    // ✅ Append discountcode if still within 1 minute
+    // ✅ NEW: Append discountcode only if we have one and it isn't already present (surgical add)
+    if (discountcode && !url.searchParams.has(DISCOUNT_PARAM)) {
+      url.searchParams.set(DISCOUNT_PARAM, discountcode);
+    }
+
+    const isRelative =
+      !/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(href) && !href.startsWith("//");
+
+    link.setAttribute(
+      "href",
+      isRelative && isSameOrigin
+        ? url.pathname + url.search + url.hash
+        : url.toString()
+    );
+  });
+})();
