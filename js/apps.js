@@ -1,3 +1,18 @@
+// ------------------------------
+// Detect FB / Instagram / Messenger in-app browser
+// ------------------------------
+(function () {
+  const ua = navigator.userAgent || "";
+  const isInApp =
+    ua.includes("FBAN") ||
+    ua.includes("FBAV") ||
+    ua.includes("Instagram");
+
+  if (isInApp) {
+    document.documentElement.classList.add("inapp-browser");
+  }
+})();
+
 $(document).ready(function () {
 
   // --------- NEW: Menu link → Cloudinary menu image (always fresh) ----------
