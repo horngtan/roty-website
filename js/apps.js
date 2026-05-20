@@ -147,11 +147,13 @@ $(document).ready(function () {
   });
 
   // AOS PAGE ANIMATION ACTIVATION
-  AOS.init({
-    easing: 'ease',
-    duration: 1800,
-    once: true
-  });
+  if (window.AOS) {
+    AOS.init({
+      easing: 'ease',
+      duration: 1800,
+      once: true
+    });
+  }
 
 });
 
@@ -175,6 +177,8 @@ jQuery(document).ready(function ($) {
 });
 
 $(document).ready(function () {
+
+  if (!$.fn.magnificPopup) return;
 
   $('.image-popup-vertical-fit').magnificPopup({
     type: 'image',
